@@ -154,6 +154,7 @@ static void installAll(void) {
     dispatch_once(&once, ^{
         UPrefsRegister();
         UInstallAppGroupFallback();       // before Viber touches its shared container
+        UInstallCompanionMode();
         hookTabs();                       // always: also installs the settings gesture
         if (UPref(@"ads")) hookAds();
         if (UPref(@"promos")) hookPromos();

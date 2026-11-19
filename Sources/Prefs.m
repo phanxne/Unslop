@@ -10,6 +10,7 @@ void UPrefsRegister(void) {
                           @"tab.chatgpt", @"tab.dating", @"tab.pay",
                           @"theme.native", @"theme.chat", @"theme.tint"])
         d[K(k)] = @YES;
+    d[K(@"companion")] = @NO;
     [NSUserDefaults.standardUserDefaults registerDefaults:d];
 }
 
