@@ -15,6 +15,7 @@ Unslop is a small runtime tweak (a plain dylib, no Substrate or jailbreak needed
 | Promos | Blocks remote promo banners and the ChatGPT login footer |
 | Typing | Hides incoming typing / recording indicators (display only) |
 | Native look | System navigation/tab bars, system accent instead of Viber purple, system fonts and colors on the chat list (Light/Dark aware) |
+| Native chat | Flat, borderless bubbles in system blue / neutral gray (Viber purple and gradients removed), rounded capsule input field |
 | Settings | Native settings screen to toggle every feature |
 
 Not included on purpose: hiding *your* typing or seen status. Viber ships that as a Viber Plus feature, and Unslop does not bypass paid features.

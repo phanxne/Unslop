@@ -8,7 +8,7 @@ void UPrefsRegister(void) {
     for (NSString *k in @[@"ads", @"promos", @"typing",
                           @"tab.explore", @"tab.stories", @"tab.marketplace",
                           @"tab.chatgpt", @"tab.dating", @"tab.pay",
-                          @"theme.native", @"theme.tint"])
+                          @"theme.native", @"theme.chat", @"theme.tint"])
         d[K(k)] = @YES;
     [NSUserDefaults.standardUserDefaults registerDefaults:d];
 }

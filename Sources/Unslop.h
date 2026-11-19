@@ -17,3 +17,4 @@ void UInstallSettingsGesture(UITabBarController *tbc);
 
 // Native look.
 void UInstallTheme(void);
+UIColor *UMapBubbleColor(UIColor *c);   // exposed for tests

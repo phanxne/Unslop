@@ -39,6 +39,7 @@ static NSDictionary *tog(NSString *t, NSString *d, NSString *k) { return @{@"tit
                 tog(@"Viber Pay", nil, @"tab.pay")]),
             sec(@"Appearance", @"Uses system colors, fonts and bars so Viber follows Light, Dark and Dynamic Type.", @[
                 tog(@"Native look", @"System bars and chat list styling", @"theme.native"),
+                tog(@"Native chat", @"Flat system-style bubbles, rounded input field", @"theme.chat"),
                 tog(@"System accent", @"Replace Viber purple with system blue", @"theme.tint")]),
             sec(nil, @"Changes apply the next time Viber launches.", @[
                 @{@"title": @"Quit Viber", @"action": @"quit"}]),

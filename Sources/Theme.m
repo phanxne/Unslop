@@ -63,8 +63,59 @@ static void hookWindowTint(void) {
             for (UIWindow *w in ((UIWindowScene *)sc).windows) applyTint(w);
 }
 
+
+#pragma mark - Chat bubbles and input field
+
+// Viber's palette -> native. Decided by the incoming color so Viber's own
+// light/dark choice is respected: saturated (accent) -> system blue, light
+// neutral -> light gray, dark neutral -> dark gray.
+UIColor *UMapBubbleColor(UIColor *c) {
+    if (![c isKindOfClass:UIColor.class]) return c;
+    CGFloat h, sat, b, a;
+    if (![c getHue:&h saturation:&sat brightness:&b alpha:&a]) {
+        CGFloat w; if (![c getWhite:&w alpha:&a]) return c;
+        sat = 0; b = w;
+    }
+    if (a < 0.1) return c;
+    if (sat > 0.35) return [UIColor colorWithRed:0.04 green:0.52 blue:1.0 alpha:a];
+    if (b > 0.5)    return [UIColor colorWithWhite:0.91 alpha:a];
+    return [UIColor colorWithWhite:0.17 alpha:a];
+}
+
+static void hookChat(void) {
+    Class bs = NSClassFromString(@"_TtC21ViberChatUIInterfaces21BubbleBackgroundStyle");
+    Method solid = class_getClassMethod(bs, NSSelectorFromString(@"solidWith:"));
+    if (solid) {
+        id (*origSolid)(id, SEL, id) = (void *)method_getImplementation(solid);
+        SEL solidSel = NSSelectorFromString(@"solidWith:");
+        UReplace(bs, solidSel, YES, ^id(Class cls, id color) {
+            return origSolid(cls, solidSel, UMapBubbleColor(color));
+        });
+        SEL gradSel = NSSelectorFromString(@"gradientWithColors:startPoint:endPoint:locations:");
+        Method grad = class_getClassMethod(bs, gradSel);
+        if (grad) {
+            id (*origGrad)(id, SEL, NSArray *, CGPoint, CGPoint, id) = (void *)method_getImplementation(grad);
+            UReplace(bs, gradSel, YES, ^id(Class cls, NSArray *colors, CGPoint a, CGPoint b, id loc) {
+                if ([colors.firstObject isKindOfClass:UIColor.class])
+                    return origSolid(cls, solidSel, UMapBubbleColor(colors.firstObject));  // flat, not gradient
+                return origGrad(cls, gradSel, colors, a, b, loc);
+            });
+        }
+    } else ULOG(@"missing BubbleBackgroundStyle +solidWith:");
+
+    // Borderless bubbles.
+    UReplace(NSClassFromString(@"VIBBubbleShapeHelper"),
+             NSSelectorFromString(@"shouldDrawBorderOnBubbleForConversationUIStyle:"), YES,
+             ^BOOL(Class c, unsigned long long style) { return NO; });
+    // Rounded, capsule-style input field (Viber's own alternate design).
+    UReplace(NSClassFromString(@"VIBMessageInputField"), NSSelectorFromString(@"isRoundedDesign"), NO,
+             ^BOOL(id s) { return YES; });
+    ULOG(@"chat styling hooked");
+}
+
 void UInstallTheme(void) {
     if (UPref(@"theme.native")) { applyBars(); hookChatList(); }
+    if (UPref(@"theme.chat")) hookChat();
     if (UPref(@"theme.tint")) hookWindowTint();
     ULOG(@"theme installed (native=%d tint=%d)", UPref(@"theme.native"), UPref(@"theme.tint"));
 }
