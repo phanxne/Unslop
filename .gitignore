@@ -1,0 +1,11 @@
+build/
+*.ipa
+*.dylib
+*.deb
+.venv/
+__pycache__/
+.DS_Store
+# class dumps / extracted app contents are Viber's code: never commit
+dump/
+Payload/
+*.app/
