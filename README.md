@@ -14,10 +14,23 @@ Unslop is a small runtime tweak (a plain dylib, no Substrate or jailbreak needed
 | Tabs | Hides Explore, Stories, Marketplace, ChatGPT, Dating and Viber Pay tabs. Chats, Calls and More stay |
 | Promos | Blocks remote promo banners and the ChatGPT login footer |
 | Typing | Hides incoming typing / recording indicators (display only) |
+| Native look | System navigation/tab bars, system accent instead of Viber purple, system fonts and colors on the chat list (Light/Dark aware) |
+| Settings | Native settings screen to toggle every feature |
 
 Not included on purpose: hiding *your* typing or seen status. Viber ships that as a Viber Plus feature, and Unslop does not bypass paid features.
 
 Tested target: Viber 29.6.0 (iOS 16.4+). Other versions may work, but class names can change.
+
+## Settings
+
+Long-press the tab bar for one second to open Unslop settings. Every feature has a switch; changes apply after you relaunch Viber (the screen has a Quit button).
+
+<p>
+  <img src="docs/settings-light.png" width="300" alt="Settings, light">
+  <img src="docs/settings-dark.png" width="300" alt="Settings, dark">
+</p>
+
+`make preview` opens the settings screen in a booted iOS Simulator, so you can work on it without a device.
 
 ## Build
 

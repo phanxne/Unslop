@@ -6,12 +6,18 @@
 #import <objc/runtime.h>
 #import <malloc/malloc.h>
 
-#define ULOG(fmt, ...) NSLog(@"[Unslop] " fmt, ##__VA_ARGS__)
+#import "Unslop.h"
+#define replaceMethod UReplace
 
 // ---- config -------------------------------------------------------------
-// Tabs whose provider/root class name matches any of these are removed.
+// Tabs enabled for removal in Settings; matched against provider/root class names.
 static NSArray<NSString *> *BlockedTabNames(void) {
-    return @[@"Explore", @"Shortica", @"Marketplace", @"ChatGPT", @"Dating", @"ViberPay"];
+    NSMutableArray *a = [NSMutableArray array];
+    NSDictionary *map = @{@"tab.explore": @"Explore", @"tab.stories": @"Shortica",
+                          @"tab.marketplace": @"Marketplace", @"tab.chatgpt": @"ChatGPT",
+                          @"tab.dating": @"Dating", @"tab.pay": @"ViberPay"};
+    for (NSString *k in map) if (UPref(k)) [a addObject:map[k]];
+    return a;
 }
 // Growthbook feature switchers (class-name substrings) forced to isEnabled=NO.
 static NSArray<NSString *> *KilledSwitchers(void) {
@@ -23,7 +29,7 @@ static NSArray<NSString *> *KilledSwitchers(void) {
 }
 // ------------------------------------------------------------------------
 
-static BOOL replaceMethod(Class c, SEL s, BOOL meta, id blk) {
+BOOL UReplace(Class c, SEL s, BOOL meta, id blk) {
     if (!c) return NO;
     Method m = meta ? class_getClassMethod(c, s) : class_getInstanceMethod(c, s);
     if (!m) { ULOG(@"missing %@ -%@", NSStringFromClass(c), NSStringFromSelector(s)); return NO; }
@@ -122,6 +128,7 @@ static void hookTabs(void) {
                 if (keep.count >= 2) out = keep;   // never strip to nothing
             }
             orig(s, @selector(setViewControllers:animated:), out, a);
+            if ([NSStringFromClass(s.class) containsString:@"RotatableTabBarController"]) UInstallSettingsGesture(s);
         }), method_getTypeEncoding(m));
     ULOG(@"tabs hooked");
 }
@@ -143,7 +150,14 @@ static void hookTyping(void) {
 
 static void installAll(void) {
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ hookTabs(); hookAds(); hookPromos(); hookTyping(); });
+    dispatch_once(&once, ^{
+        UPrefsRegister();
+        hookTabs();                       // always: also installs the settings gesture
+        if (UPref(@"ads")) hookAds();
+        if (UPref(@"promos")) hookPromos();
+        if (UPref(@"typing")) hookTyping();
+        UInstallTheme();
+    });
 }
 
 __attribute__((constructor)) static void init(void) {
