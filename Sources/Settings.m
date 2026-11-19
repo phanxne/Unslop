@@ -2,6 +2,7 @@
 // Native settings screen: inset-grouped list, system switches, Dynamic Type.
 #import "Unslop.h"
 #import <objc/runtime.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static NSString *const kRepoURL = @"https://github.com/phanxne/Unslop";
 
@@ -16,7 +17,7 @@ static USection *sec(NSString *t, NSString *f, NSArray *rows) {
 }
 static NSDictionary *tog(NSString *t, NSString *d, NSString *k) { return @{@"title": t, @"detail": d ?: @"", @"key": k}; }
 
-@interface USettingsController : UITableViewController
+@interface USettingsController : UITableViewController <UIDocumentPickerDelegate>
 @property NSArray<USection *> *sections;
 @end
 
@@ -41,6 +42,9 @@ static NSDictionary *tog(NSString *t, NSString *d, NSString *k) { return @{@"tit
                 tog(@"Native look", @"System bars and chat list styling", @"theme.native"),
                 tog(@"Native chat", @"Flat system-style bubbles, rounded input field", @"theme.chat"),
                 tog(@"System accent", @"Replace Viber purple with system blue", @"theme.tint")]),
+            sec(@"Chats", @"A re-signed Viber cannot use Viber's iCloud backup. Save a backup file to Files, iCloud Drive or AirDrop, and restore it after a reinstall. Restore works on the same phone and Apple ID.", @[
+                @{@"title": @"Back up chats…", @"action": @"backup"},
+                @{@"title": @"Restore chats…", @"action": @"restore"}]),
             sec(nil, @"Changes apply the next time Viber launches.", @[
                 @{@"title": @"Quit Viber", @"action": @"quit"}]),
             sec(@"About", nil, @[
@@ -86,6 +90,8 @@ static NSDictionary *tog(NSString *t, NSString *d, NSString *k) { return @{@"tit
     } else if ([action isEqual:@"quit"]) {
         cfg.textProperties.color = UIColor.systemRedColor;
         cfg.textProperties.alignment = UIListContentTextAlignmentCenter;
+    } else if ([action isEqual:@"backup"] || [action isEqual:@"restore"]) {
+        cfg.textProperties.color = self.view.tintColor;
     } else if ([action isEqual:@"source"]) {
         cfg.textProperties.color = self.view.tintColor;
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -99,7 +105,14 @@ static NSDictionary *tog(NSString *t, NSString *d, NSString *k) { return @{@"tit
 - (void)tableView:(UITableView *)tv didSelectRowAtIndexPath:(NSIndexPath *)ip {
     [tv deselectRowAtIndexPath:ip animated:YES];
     NSString *action = self.sections[ip.section].rows[ip.row][@"action"];
-    if ([action isEqual:@"source"]) {
+    if ([action isEqual:@"backup"]) {
+        [self runBackup];
+    } else if ([action isEqual:@"restore"]) {
+        UIDocumentPickerViewController *p = [[UIDocumentPickerViewController alloc]
+            initForOpeningContentTypes:@[UTTypeData] asCopy:YES];
+        p.delegate = self;
+        [self presentViewController:p animated:YES completion:nil];
+    } else if ([action isEqual:@"source"]) {
         [UIApplication.sharedApplication openURL:[NSURL URLWithString:kRepoURL] options:@{} completionHandler:nil];
     } else if ([action isEqual:@"quit"]) {
         UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Quit Viber?"
@@ -110,6 +123,44 @@ static NSDictionary *tog(NSString *t, NSString *d, NSString *k) { return @{@"tit
                                             handler:^(UIAlertAction *x) { exit(0); }]];
         [self presentViewController:a animated:YES completion:nil];
     }
+}
+
+- (void)alert:(NSString *)title message:(NSString *)msg {
+    UIAlertController *a = [UIAlertController alertControllerWithTitle:title message:msg preferredStyle:UIAlertControllerStyleAlert];
+    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:a animated:YES completion:nil];
+}
+
+- (void)runBackup {
+    UIAlertController *wait = [UIAlertController alertControllerWithTitle:@"Backing up…" message:@"This can take a minute." preferredStyle:UIAlertControllerStyleAlert];
+    [self presentViewController:wait animated:YES completion:^{
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSError *err = nil;
+            NSURL *url = UCreateBackup(&err);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [wait dismissViewControllerAnimated:YES completion:^{
+                    if (!url) { [self alert:@"Backup failed" message:err.localizedDescription ?: @"Unknown error"]; return; }
+                    UIActivityViewController *share = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];
+                    share.popoverPresentationController.sourceView = self.view;
+                    [self presentViewController:share animated:YES completion:nil];
+                }];
+            });
+        });
+    }];
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)c didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSURL *file = urls.firstObject; if (!file) return;
+    NSError *err = nil;
+    if (!UStageRestore(file, &err)) { [self alert:@"Cannot restore" message:err.localizedDescription ?: @"Unknown error"]; return; }
+    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Restore chats?"
+        message:@"This replaces the chats and settings in this app with the backup. Viber closes now; open it again to finish."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [a addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:^(UIAlertAction *x) {
+        [NSFileManager.defaultManager removeItemAtURL:[NSURL fileURLWithPath:[NSHomeDirectory() stringByAppendingPathComponent:@"Library/UnslopPending/restore.unslopbak"]] error:nil];
+    }]];
+    [a addAction:[UIAlertAction actionWithTitle:@"Restore and quit" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *x) { exit(0); }]];
+    [self presentViewController:a animated:YES completion:nil];
 }
 @end
 

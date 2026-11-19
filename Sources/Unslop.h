@@ -21,6 +21,12 @@ void UInstallAppGroupFallback(void);
 // Experimental companion (iPad) mode.
 void UInstallCompanionMode(void);
 
+// Manual chat backup and restore (Watusi style).
+NSURL *UCreateBackup(NSError **err);               // writes a .unslopbak into tmp
+BOOL UStageRestore(NSURL *picked, NSError **err);  // applied at next launch
+BOOL UHasPendingRestore(void);
+void UApplyPendingRestore(void);                   // call first thing at launch
+
 // Native look.
 void UInstallTheme(void);
 UIColor *UMapBubbleColor(UIColor *c);   // exposed for tests

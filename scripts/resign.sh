@@ -18,7 +18,7 @@
 # profile, so those features do not work in the re-signed app.
 set -euo pipefail
 
-IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-com.viber}
+IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-dev.unslop.viber}
 GROUP_TAG=${GROUP_TAG:-}
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 

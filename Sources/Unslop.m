@@ -152,6 +152,7 @@ static void hookTyping(void) {
 static void installAll(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
+        UApplyPendingRestore();           // before anything opens Viber's data
         UPrefsRegister();
         UInstallAppGroupFallback();       // before Viber touches its shared container
         UInstallCompanionMode();

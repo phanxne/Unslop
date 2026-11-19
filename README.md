@@ -58,9 +58,20 @@ scripts/resign.sh build/Viber-Unslop.ipa build/Viber-signed.ipa \
 xcrun devicectl device install app --device <UDID> build/Viber-signed.ipa
 ```
 
-The app keeps the original bundle ID (`com.viber`), so **stock Viber must be uninstalled first** (iOS refuses to replace an app signed by another team, and uninstalling deletes its local data, including chats). Pass a bundle ID as the 5th argument to install alongside stock instead.
+Like Watusi for WhatsApp, Unslop installs as a **duplicate with its own bundle ID** (`dev.unslop.viber` by default), next to the App Store app. Pass a different ID as the 5th argument, or `com.viber` to replace the App Store app (iOS only allows that after uninstalling it, which deletes its local data, including chats).
 
-Viber stores data in an app group that a re-signed copy cannot hold. Unslop redirects the app group container into the app's own sandbox, and `resign.sh` updates the keychain group prefix, so no special capabilities are needed. App extensions are kept, but push notifications and other special entitlements are unavailable with a development profile.
+Viber stores data in an app group that a re-signed copy cannot hold. Unslop redirects the app group container into the app's own sandbox, and `resign.sh` updates the keychain group prefix, so no special capabilities are needed. App extensions are removed (they need their own profiles), and push notifications are unavailable with a development profile.
+
+### Chats: back up and restore by hand
+
+Viber's iCloud backup is locked to Viber's team, so a duplicate cannot read it. Unslop can instead save the app's data to one file and load it back, the same way Watusi handles WhatsApp:
+
+- **Back up chats** (Unslop settings, long-press the tab bar): creates a `.unslopbak` file and opens the share sheet. Save it to Files, iCloud Drive or AirDrop it to yourself.
+- **Restore chats**: pick the file; Viber closes, and the restore is applied the next time it opens, before Viber loads its data.
+
+Restore works on the same phone and Apple ID: Viber's keychain items are not part of the file. `make test-backup` runs a round-trip test in the iOS Simulator.
+
+**One number, one phone.** Viber links an account to one phone. Signing in to the duplicate with the same number moves the account to it and signs the App Store copy out. History from the App Store copy cannot be exported to Unslop, so the duplicate starts empty (the chat list returns, messages do not). Start with a fresh Unslop install, and use Back up chats from then on.
 
 ## Limitations of sideloading
 
@@ -68,7 +79,7 @@ Re-signing with your own certificate is a platform limit, not an Unslop bug. A d
 
 - **No iCloud restore.** Viber's backup lives in Viber's iCloud container. A re-signed copy cannot read or write it, so a fresh install shows chats with no history. Back up, restore and back up again only in stock Viber.
 - **No push notifications.**
-- **A separate install.** It replaces stock Viber (same bundle ID); uninstalling deletes local data.
+- **Companion / linked-device sync.** Unlike Watusi with WhatsApp, Viber offers no way to link an iPhone copy as a second device, so there is no live sync with the App Store copy.
 
 **Before you install:** make a Viber backup in stock Viber, and turn off Viber auto-backup while the re-signed app is installed. An empty backup would overwrite a good one.
 
