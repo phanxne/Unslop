@@ -2,7 +2,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Re-sign an (injected) Viber IPA with your own development certificate.
 #
-#   scripts/resign.sh <in.ipa> <out.ipa> <profile.mobileprovision> "<signing identity>" [bundle id]
+#   [GROUP_TAG=<11 chars>] scripts/resign.sh <in.ipa> <out.ipa> <profile.mobileprovision> "<signing identity>" [bundle id]
+#
+# Viber keeps its data in the app group "group.viber.share.container" (and a
+# matching keychain group). Those belong to Viber's team, so a re-signed app
+# cannot use them and shows "Something Went Wrong". Set GROUP_TAG to an
+# 11-character id (replaces "viber.share", e.g. "unslop.vbr1") and use a profile
+# that contains the group "group.<GROUP_TAG>.container".
 #
 # Needs a development profile that covers your device (a wildcard profile works).
 # If the bundle id differs from the original, app extensions are removed (their
@@ -12,7 +18,8 @@
 # profile, so those features do not work in the re-signed app.
 set -euo pipefail
 
-IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-com.viber}
+IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-dev.unslop.viber}
+GROUP_TAG=${GROUP_TAG:-}
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 
 unzip -q "$IN" -d "$WORK"
@@ -32,6 +39,27 @@ fi
 /usr/libexec/PlistBuddy -c "Delete :UIApplicationShortcutItems" "$APP/Info.plist" 2>/dev/null || true
 cp "$PROFILE" "$APP/embedded.mobileprovision"
 
+GROUP_ENT=""
+if [ -n "$GROUP_TAG" ]; then
+  [ ${#GROUP_TAG} -eq 11 ] || { echo "GROUP_TAG must be exactly 11 characters" >&2; exit 1; }
+  python3 - "$APP" "$GROUP_TAG" <<'PY'
+import os, sys
+app, tag = sys.argv[1], sys.argv[2].encode()
+old = b"viber.share"
+n = 0
+for root, _, files in os.walk(os.path.join(app, "Frameworks")):
+    for f in files:
+        p = os.path.join(root, f)
+        if os.path.islink(p) or not os.path.isfile(p): continue
+        d = open(p, "rb").read()
+        if old in d:
+            open(p, "wb").write(d.replace(old, tag)); n += 1
+print("patched app group string in", n, "file(s)")
+PY
+  GROUP_ENT="<key>com.apple.security.application-groups</key><array><string>group.$GROUP_TAG.container</string></array>
+  <key>keychain-access-groups</key><array><string>$TEAM.group.$GROUP_TAG.keychain</string></array>"
+fi
+
 cat > "$WORK/ent.plist" <<ENT
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -39,6 +67,7 @@ cat > "$WORK/ent.plist" <<ENT
   <key>application-identifier</key><string>$TEAM.$BUNDLE_ID</string>
   <key>com.apple.developer.team-identifier</key><string>$TEAM</string>
   <key>get-task-allow</key><true/>
+  $GROUP_ENT
 </dict></plist>
 ENT
 

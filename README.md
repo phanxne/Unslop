@@ -50,14 +50,20 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/inject.py Viber.ipa build/Unslop.dylib build/Viber-Unslop.ipa
 ```
 
-Then sign and install with your own tooling (Sideloadly etc.), or from the command line:
+Then sign and install with your own tooling, or from the command line.
+
+Viber stores its data in an app group (`group.viber.share.container`) owned by Viber's team. A re-signed copy cannot use it and shows **"Something Went Wrong"** on launch. `scripts/resign.sh` fixes this by renaming the group inside the app (`GROUP_TAG`, exactly 11 characters) so it matches a group in *your* provisioning profile:
+
+1. Register `group.<GROUP_TAG>.container` and an explicit App ID (for example `dev.unslop.viber`) with your team. The easiest way is a throwaway Xcode project with automatic signing, that bundle ID and the app-group entitlement; build it once for your device and take the generated `embedded.mobileprovision`.
+2. Re-sign and install:
 
 ```bash
-scripts/resign.sh build/Viber-Unslop.ipa build/Viber-signed.ipa MyProfile.mobileprovision "Apple Development: Your Name (TEAMID)"
+GROUP_TAG=unslop.vbr1 scripts/resign.sh build/Viber-Unslop.ipa build/Viber-signed.ipa \
+  embedded.mobileprovision "Apple Development: Your Name (TEAMID)" dev.unslop.viber
 xcrun devicectl device install app --device <UDID> build/Viber-signed.ipa
 ```
 
-The re-signed app gets a new bundle ID, so it installs next to App Store Viber with separate data. App extensions are removed (they need their own profiles), so notifications, share sheet and widgets do not work in the re-signed app.
+The re-signed app has its own bundle ID and data, so it installs next to App Store Viber. App extensions are removed, and push notifications are unavailable (development profiles cannot grant them).
 
 ## Debug
 
