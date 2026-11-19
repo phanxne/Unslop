@@ -50,7 +50,14 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/inject.py Viber.ipa build/Unslop.dylib build/Viber-Unslop.ipa
 ```
 
-Sign `build/Viber-Unslop.ipa` with your own certificate and install it (Sideloadly, your own tooling, etc.).
+Then sign and install with your own tooling (Sideloadly etc.), or from the command line:
+
+```bash
+scripts/resign.sh build/Viber-Unslop.ipa build/Viber-signed.ipa MyProfile.mobileprovision "Apple Development: Your Name (TEAMID)"
+xcrun devicectl device install app --device <UDID> build/Viber-signed.ipa
+```
+
+The re-signed app gets a new bundle ID, so it installs next to App Store Viber with separate data. App extensions are removed (they need their own profiles), so notifications, share sheet and widgets do not work in the re-signed app.
 
 ## Debug
 

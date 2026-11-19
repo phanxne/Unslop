@@ -72,6 +72,7 @@ static void hookAds(void) {
     for (unsigned int i = 0; i < n; i++) {
         NSString *name = NSStringFromClass(all[i]);
         if (![name hasSuffix:@"FeatureSwitcherImpl"] || !nameHits(name, KilledSwitchers())) continue;
+        if (!class_getInstanceMethod(all[i], NSSelectorFromString(@"isEnabled"))) continue;  // Swift-only switcher, not reachable
         if (replaceMethod(all[i], NSSelectorFromString(@"isEnabled"), NO, ^BOOL(id s) { return NO; })) hit++;
     }
     free(all);
