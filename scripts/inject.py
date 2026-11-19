@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Add Unslop.dylib to a decrypted Viber IPA.
 
 usage: inject.py <decrypted.ipa> <Unslop.dylib> <out.ipa>

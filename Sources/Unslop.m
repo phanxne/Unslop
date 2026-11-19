@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Unslop - runtime tweak for Viber iOS 29.6.0. No Substrate needed:
 // plain ObjC runtime method replacement, so it works as a sideloaded dylib.
 #import <Foundation/Foundation.h>

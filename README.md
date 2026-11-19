@@ -59,4 +59,4 @@ Viber updates rename things. If a hook breaks, open an issue with your Viber ver
 
 ## License
 
-MIT
+GPL-3.0-or-later. See [LICENSE](LICENSE).
