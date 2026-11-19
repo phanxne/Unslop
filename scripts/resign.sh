@@ -5,11 +5,14 @@
 #   scripts/resign.sh <in.ipa> <out.ipa> <profile.mobileprovision> "<signing identity>" [bundle id]
 #
 # Needs a development profile that covers your device (a wildcard profile works).
-# App extensions are removed: they would each need their own profile, so
-# notifications, share sheet, widgets and Siri do not work in the re-signed app.
+# If the bundle id differs from the original, app extensions are removed (their
+# ids would no longer match). If it is the original id (e.g. com.viber) they are
+# kept and signed with minimal entitlements. Either way, push notifications,
+# app groups and other special entitlements cannot come from a development
+# profile, so those features do not work in the re-signed app.
 set -euo pipefail
 
-IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-dev.unslop.viber}
+IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-com.viber}
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 
 unzip -q "$IN" -d "$WORK"
@@ -19,8 +22,12 @@ PLIST=$WORK/profile.plist
 security cms -D -i "$PROFILE" > "$PLIST"
 TEAM=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PLIST")
 
-rm -rf "$APP/PlugIns" "$APP/Extensions" "$APP/Watch" "$APP/_CodeSignature" "$APP/SC_Info"
-find "$APP" -name '*.appex' -prune -exec rm -rf {} +
+ORIG_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+rm -rf "$APP/Watch" "$APP/_CodeSignature" "$APP/SC_Info"
+if [ "$ORIG_ID" != "$BUNDLE_ID" ]; then
+  rm -rf "$APP/PlugIns" "$APP/Extensions"
+  find "$APP" -name '*.appex' -prune -exec rm -rf {} +
+fi
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c "Delete :UIApplicationShortcutItems" "$APP/Info.plist" 2>/dev/null || true
 cp "$PROFILE" "$APP/embedded.mobileprovision"
@@ -38,6 +45,14 @@ ENT
 # Sign inside-out: dylibs, frameworks, then the app.
 find "$APP/Frameworks" -maxdepth 1 \( -name '*.dylib' -o -name '*.framework' \) -print0 2>/dev/null |
   while IFS= read -r -d '' f; do codesign -f -s "$IDENTITY" "$f"; done
+find "$APP" -name '*.appex' -prune -print0 |
+  while IFS= read -r -d '' x; do
+    EID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$x/Info.plist")
+    sed "s|$TEAM.$BUNDLE_ID|$TEAM.$EID|" "$WORK/ent.plist" > "$WORK/ent-ext.plist"
+    cp "$PROFILE" "$x/embedded.mobileprovision"
+    rm -rf "$x/_CodeSignature"
+    codesign -f -s "$IDENTITY" --entitlements "$WORK/ent-ext.plist" "$x"
+  done
 codesign -f -s "$IDENTITY" --entitlements "$WORK/ent.plist" "$APP"
 
 rm -f "$OUT"
