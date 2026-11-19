@@ -62,6 +62,18 @@ The app keeps the original bundle ID (`com.viber`), so **stock Viber must be uni
 
 Viber stores data in an app group that a re-signed copy cannot hold. Unslop redirects the app group container into the app's own sandbox, and `resign.sh` updates the keychain group prefix, so no special capabilities are needed. App extensions are kept, but push notifications and other special entitlements are unavailable with a development profile.
 
+## Limitations of sideloading
+
+Re-signing with your own certificate is a platform limit, not an Unslop bug. A development certificate cannot grant entitlements that belong to Viber's team, so a re-signed Viber has:
+
+- **No iCloud restore.** Viber's backup lives in Viber's iCloud container. A re-signed copy cannot read or write it, so a fresh install shows chats with no history. Back up, restore and back up again only in stock Viber.
+- **No push notifications.**
+- **A separate install.** It replaces stock Viber (same bundle ID); uninstalling deletes local data.
+
+**Before you install:** make a Viber backup in stock Viber, and turn off Viber auto-backup while the re-signed app is installed. An empty backup would overwrite a good one.
+
+Installs that keep Viber's original signature and entitlements avoid these limits. Unslop itself is a plain dylib, so it works with anything that can load one (a jailbreak, or tools that inject a dylib without re-signing the app).
+
 ## Debug
 
 Unslop logs with the prefix `[Unslop]` in the device console. A line like `missing <Class> -<selector>` means a hook target was not found in your Viber version.
