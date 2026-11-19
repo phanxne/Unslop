@@ -18,7 +18,7 @@
 # profile, so those features do not work in the re-signed app.
 set -euo pipefail
 
-IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-dev.unslop.viber}
+IN=$1; OUT=$2; PROFILE=$3; IDENTITY=$4; BUNDLE_ID=${5:-com.viber}
 GROUP_TAG=${GROUP_TAG:-}
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 
@@ -39,7 +39,11 @@ fi
 /usr/libexec/PlistBuddy -c "Delete :UIApplicationShortcutItems" "$APP/Info.plist" 2>/dev/null || true
 cp "$PROFILE" "$APP/embedded.mobileprovision"
 
-GROUP_ENT=""
+/usr/libexec/PlistBuddy -c "Set :AppIdentifierPrefix $TEAM." "$APP/Info.plist" 2>/dev/null || true
+# No app group in a development profile: keep the keychain group Viber expects
+# (covered by the profile's TEAM.* keychain entry); the Unslop dylib redirects the
+# shared container into the app's own sandbox.
+GROUP_ENT="<key>keychain-access-groups</key><array><string>$TEAM.group.viber.share.keychain</string><string>$TEAM.$BUNDLE_ID</string></array>"
 if [ -n "$GROUP_TAG" ]; then
   [ ${#GROUP_TAG} -eq 11 ] || { echo "GROUP_TAG must be exactly 11 characters" >&2; exit 1; }
   python3 - "$APP" "$GROUP_TAG" <<'PY'

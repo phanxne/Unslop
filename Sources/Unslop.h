@@ -15,6 +15,9 @@ BOOL UReplace(Class c, SEL s, BOOL meta, id block);
 void UPresentSettings(void);
 void UInstallSettingsGesture(UITabBarController *tbc);
 
+// Falls back to an in-sandbox folder when the app-group entitlement is missing.
+void UInstallAppGroupFallback(void);
+
 // Native look.
 void UInstallTheme(void);
 UIColor *UMapBubbleColor(UIColor *c);   // exposed for tests

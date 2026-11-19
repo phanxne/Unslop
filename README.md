@@ -50,20 +50,17 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/inject.py Viber.ipa build/Unslop.dylib build/Viber-Unslop.ipa
 ```
 
-Then sign and install with your own tooling, or from the command line.
-
-Viber stores its data in an app group (`group.viber.share.container`) owned by Viber's team. A re-signed copy cannot use it and shows **"Something Went Wrong"** on launch. `scripts/resign.sh` fixes this by renaming the group inside the app (`GROUP_TAG`, exactly 11 characters) so it matches a group in *your* provisioning profile:
-
-1. Register `group.<GROUP_TAG>.container` and an explicit App ID (for example `dev.unslop.viber`) with your team. The easiest way is a throwaway Xcode project with automatic signing, that bundle ID and the app-group entitlement; build it once for your device and take the generated `embedded.mobileprovision`.
-2. Re-sign and install:
+Then sign and install with your own tooling, or from the command line. You need a development provisioning profile for your device; a wildcard profile (`TEAMID.*`) is enough.
 
 ```bash
-GROUP_TAG=unslop.vbr1 scripts/resign.sh build/Viber-Unslop.ipa build/Viber-signed.ipa \
-  embedded.mobileprovision "Apple Development: Your Name (TEAMID)" dev.unslop.viber
+scripts/resign.sh build/Viber-Unslop.ipa build/Viber-signed.ipa \
+  embedded.mobileprovision "Apple Development: Your Name (TEAMID)"
 xcrun devicectl device install app --device <UDID> build/Viber-signed.ipa
 ```
 
-The re-signed app has its own bundle ID and data, so it installs next to App Store Viber. App extensions are removed, and push notifications are unavailable (development profiles cannot grant them).
+The app keeps the original bundle ID (`com.viber`), so **stock Viber must be uninstalled first** (iOS refuses to replace an app signed by another team, and uninstalling deletes its local data, including chats). Pass a bundle ID as the 5th argument to install alongside stock instead.
+
+Viber stores data in an app group that a re-signed copy cannot hold. Unslop redirects the app group container into the app's own sandbox, and `resign.sh` updates the keychain group prefix, so no special capabilities are needed. App extensions are kept, but push notifications and other special entitlements are unavailable with a development profile.
 
 ## Debug
 
