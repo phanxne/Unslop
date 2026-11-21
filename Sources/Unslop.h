@@ -25,6 +25,7 @@ void UInstallCompanionMode(void);
 NSURL *UCreateBackup(NSError **err);               // writes a .unslopbak into tmp
 BOOL UStageRestore(NSURL *picked, NSError **err);  // applied at next launch
 BOOL UHasPendingRestore(void);
+BOOL UVerifyBackup(NSURL *file, NSUInteger *count, NSError **err);  // checks structure and SHA-256
 void UApplyPendingRestore(void);                   // call first thing at launch
 
 // Native look.
