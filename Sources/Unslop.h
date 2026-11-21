@@ -18,6 +18,9 @@ void UInstallSettingsGesture(UITabBarController *tbc);
 // Falls back to an in-sandbox folder when the app-group entitlement is missing.
 void UInstallAppGroupFallback(void);
 
+// Stubs INPreferences so a missing com.apple.developer.siri entitlement doesn't crash the app.
+void UInstallSiriStub(void);
+
 // Experimental companion (iPad) mode.
 void UInstallCompanionMode(void);
 

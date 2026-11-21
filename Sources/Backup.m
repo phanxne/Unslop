@@ -15,6 +15,8 @@
 #import "Unslop.h"
 #import <CommonCrypto/CommonDigest.h>
 #import <sqlite3.h>
+#import <stdlib.h>
+#import <limits.h>
 
 static NSString *const kMagic = @"UNSLOPBAK2\n";
 #define kDigestLen CC_SHA256_DIGEST_LENGTH
@@ -23,7 +25,18 @@ static NSString *const kMagic = @"UNSLOPBAK2\n";
 static NSArray<NSString *> *roots(void) {
     return @[@"Documents", @"Library/Application Support", @"Library/Preferences"];
 }
-static NSURL *home(void) { return [NSURL fileURLWithPath:NSHomeDirectory() isDirectory:YES]; }
+// NSHomeDirectory() returns a path through /var, but NSFileManager's
+// enumerator resolves it to the real /private/var path, so slicing a
+// relative path by home().path.length against an enumerated URL would cut
+// into the middle of the container UUID. -stringByResolvingSymlinksInPath
+// leaves it untouched here (the sandbox apparently doesn't let it stat
+// through /var), so resolve with realpath(3) instead.
+static NSURL *home(void) {
+    const char *in = NSHomeDirectory().fileSystemRepresentation;
+    char buf[PATH_MAX];
+    const char *resolved = realpath(in, buf) ?: in;
+    return [NSURL fileURLWithPath:[NSString stringWithUTF8String:resolved] isDirectory:YES];
+}
 static NSURL *pendingDir(void) { return [home() URLByAppendingPathComponent:@"Library/UnslopPending" isDirectory:YES]; }
 static NSURL *pendingFile(void) { return [pendingDir() URLByAppendingPathComponent:@"restore.unslopbak"]; }
 static NSURL *extractDir(void) { return [pendingDir() URLByAppendingPathComponent:@"extract" isDirectory:YES]; }
@@ -36,7 +49,12 @@ static NSError *fail(NSInteger code, NSString *msg) {
 static BOOL skipPath(NSString *rel) {
     if ([rel hasPrefix:@"Library/UnslopPending"] || [rel containsString:@"/UnslopPending/"]) return YES;
     NSString *n = rel.lastPathComponent;
-    return [n hasSuffix:@"-wal"] || [n hasSuffix:@"-shm"] || [n hasSuffix:@"-journal"];
+    // -wal/-shm/-journal are SQLite's own transient files; ".backup"/".tmp" are
+    // atomic-write sidecars (e.g. preference stores) that can be replaced or
+    // removed out from under us mid-read. None of these hold state that isn't
+    // also in the file they are a transient copy of or working toward.
+    return [n hasSuffix:@"-wal"] || [n hasSuffix:@"-shm"] || [n hasSuffix:@"-journal"] ||
+           [n hasSuffix:@".backup"] || [n hasSuffix:@".tmp"];
 }
 
 static BOOL isSQLite(NSURL *u) {
@@ -103,21 +121,21 @@ static BOOL readBackup(NSURL *file, NSURL *dest, NSUInteger *count, NSError **er
     for (;;) {
         @autoreleasepool {
             NSData *l = [h readDataOfLength:4];
-            if (l.length < 4) { ok = NO; break; }
+            if (l.length < 4) { ULOG(@"readBackup: short length-prefix read (%lu bytes) at n=%lu", (unsigned long)l.length, (unsigned long)n); ok = NO; break; }
             CC_SHA256_Update(&ctx, l.bytes, 4);
             uint32_t plen; memcpy(&plen, l.bytes, 4);
             if (plen == 0) break;
-            if (plen > 4096) { ok = NO; break; }
+            if (plen > 4096) { ULOG(@"readBackup: implausible plen=%u at n=%lu", plen, (unsigned long)n); ok = NO; break; }
             NSData *pd = [h readDataOfLength:plen];
             NSData *sd = [h readDataOfLength:8];
-            if (pd.length < plen || sd.length < 8) { ok = NO; break; }
+            if (pd.length < plen || sd.length < 8) { ULOG(@"readBackup: short name/size read at n=%lu (pd=%lu want=%u, sd=%lu)", (unsigned long)n, (unsigned long)pd.length, plen, (unsigned long)sd.length); ok = NO; break; }
             CC_SHA256_Update(&ctx, pd.bytes, (CC_LONG)plen);
             CC_SHA256_Update(&ctx, sd.bytes, 8);
             uint64_t size; memcpy(&size, sd.bytes, 8);
             NSString *rel = [[NSString alloc] initWithData:pd encoding:NSUTF8StringEncoding];
             BOOL safe = rel.length && ![rel hasPrefix:@"/"] && ![rel containsString:@".."];
             if (safe) { BOOL inRoot = NO; for (NSString *r in roots()) if ([rel hasPrefix:[r stringByAppendingString:@"/"]]) inRoot = YES; safe = inRoot; }
-            if (!safe) { ok = NO; break; }
+            if (!safe) { ULOG(@"readBackup: unsafe path at n=%lu: %@", (unsigned long)n, rel); ok = NO; break; }
             NSFileHandle *w = nil;
             if (dest) {
                 NSURL *dst = [dest URLByAppendingPathComponent:rel];
@@ -129,7 +147,7 @@ static BOOL readBackup(NSURL *file, NSURL *dest, NSUInteger *count, NSError **er
             uint64_t left = size;
             while (left > 0) {
                 NSData *c = [h readDataOfLength:(NSUInteger)MIN(left, (uint64_t)(1 << 20))];
-                if (!c.length) { ok = NO; break; }
+                if (!c.length) { ULOG(@"readBackup: short read on %@ (wanted %llu more of %llu)", rel, left, size); ok = NO; break; }
                 CC_SHA256_Update(&ctx, c.bytes, (CC_LONG)c.length);
                 [w writeData:c]; left -= c.length;
             }
@@ -143,6 +161,7 @@ static BOOL readBackup(NSURL *file, NSURL *dest, NSUInteger *count, NSError **er
     [h closeFile];
     uint8_t got[kDigestLen]; CC_SHA256_Final(got, &ctx);
     if (!ok || want.length != kDigestLen || memcmp(got, want.bytes, kDigestLen) != 0) {
+        ULOG(@"readBackup fail: ok=%d want.length=%lu (n=%lu files read)", ok, (unsigned long)want.length, (unsigned long)n);
         if (err) *err = fail(3, @"The backup file is damaged or incomplete");
         return NO;
     }
@@ -215,7 +234,9 @@ NSURL *UCreateBackup(NSError **err) {
 
     // Prove it reads back before telling anyone it is a good backup.
     NSUInteger back = 0;
-    if (!UVerifyBackup(out, &back, err) || back != files) {
+    BOOL verOK = UVerifyBackup(out, &back, err);
+    ULOG(@"backup write: files=%lu verOK=%d back=%lu", (unsigned long)files, verOK, (unsigned long)back);
+    if (!verOK || back != files) {
         [fm removeItemAtURL:out error:nil];
         if (err && !*err) *err = fail(5, @"Backup verification failed");
         return nil;

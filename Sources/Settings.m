@@ -189,21 +189,29 @@ void UPresentSettings(void) {
 
 @interface UGestureTarget : NSObject
 + (instancetype)shared;
-- (void)handle:(UILongPressGestureRecognizer *)g;
+- (void)handle;
 @end
 @implementation UGestureTarget
 + (instancetype)shared { static UGestureTarget *t; static dispatch_once_t o; dispatch_once(&o, ^{ t = UGestureTarget.new; }); return t; }
-- (void)handle:(UILongPressGestureRecognizer *)g { if (g.state == UIGestureRecognizerStateBegan) UPresentSettings(); }
+- (void)handle { UPresentSettings(); }
 @end
 
-// Long-press the tab bar to open Unslop.
+// Small floating button above the tab bar opens Unslop. A plain UIButton with
+// touchUpInside, not a gesture on the tab bar itself: the system tab bar has
+// its own long-press/context-menu handling that silently wins any gesture
+// added alongside it, so neither a long-press nor a multi-tap ever arrived.
 void UInstallSettingsGesture(UITabBarController *tbc) {
-    UITabBar *bar = tbc.tabBar;
-    for (UIGestureRecognizer *g in bar.gestureRecognizers) if ([g.name isEqual:@"unslop"]) return;
-    UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc]
-        initWithTarget:UGestureTarget.shared action:@selector(handle:)];
-    lp.minimumPressDuration = 1.0;
-    lp.name = @"unslop";
-    lp.cancelsTouchesInView = NO;
-    [bar addGestureRecognizer:lp];
+    const NSInteger kUnslopButtonTag = 0x05104057;
+    for (UIView *v in tbc.view.subviews) if (v.tag == kUnslopButtonTag) return;
+    UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
+    b.tag = kUnslopButtonTag;
+    b.frame = CGRectMake(tbc.view.bounds.size.width - 52, tbc.tabBar.frame.origin.y - 52, 36, 36);
+    b.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleTopMargin;
+    b.backgroundColor = [UIColor.labelColor colorWithAlphaComponent:0.12];
+    b.layer.cornerRadius = 18;
+    b.tintColor = UIColor.labelColor;
+    [b setImage:[UIImage systemImageNamed:@"gearshape.fill"] forState:UIControlStateNormal];
+    [b addTarget:UGestureTarget.shared action:@selector(handle) forControlEvents:UIControlEventTouchUpInside];
+    [tbc.view addSubview:b];
+    ULOG(@"settings button installed");
 }

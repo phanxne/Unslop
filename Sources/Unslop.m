@@ -154,6 +154,7 @@ static void installAll(void) {
     dispatch_once(&once, ^{
         UApplyPendingRestore();           // before anything opens Viber's data
         UPrefsRegister();
+        UInstallSiriStub();               // before Viber checks Siri authorization
         UInstallAppGroupFallback();       // before Viber touches its shared container
         UInstallCompanionMode();
         hookTabs();                       // always: also installs the settings gesture

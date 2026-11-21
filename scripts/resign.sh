@@ -37,6 +37,22 @@ if [ "$ORIG_ID" != "$BUNDLE_ID" ]; then
 fi
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c "Delete :UIApplicationShortcutItems" "$APP/Info.plist" 2>/dev/null || true
+# A development profile has no com.apple.developer.siri entitlement. Viber's
+# Siri Shortcuts activity types (NSUserActivityTypes) make iOS offer "Add to
+# Siri" on long-press anywhere in the app, which then crashes
+# (NSInternalInconsistencyException: INPreferences requires the Siri
+# entitlement) before any other long-press gesture, including Unslop's
+# settings gesture, can run.
+/usr/libexec/PlistBuddy -c "Delete :NSUserActivityTypes" "$APP/Info.plist" 2>/dev/null || true
+# So this build is never confused with stock Viber on the Home Screen / App
+# Library: rename it and switch to one of Viber's own bundled alternate icons
+# (grayscale "AppIcon9") instead of the default purple one.
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Unslop" "$APP/Info.plist" 2>/dev/null || \
+  /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Unslop" "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName AppIcon9" "$APP/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:0 AppIcon9" "$APP/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName AppIcon9" "$APP/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:0 AppIcon9" "$APP/Info.plist" 2>/dev/null || true
 cp "$PROFILE" "$APP/embedded.mobileprovision"
 
 /usr/libexec/PlistBuddy -c "Set :AppIdentifierPrefix $TEAM." "$APP/Info.plist" 2>/dev/null || true
